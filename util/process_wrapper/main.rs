@@ -391,7 +391,7 @@ fn main() -> Result<(), ProcessWrapperError> {
         .args(child_arguments)
         .env_clear()
         .envs(opts.child_environment)
-        .stdout(if let Some(stdout_file) = opts.stdout_file {
+        .stdout(if let Some(stdout_file) = &opts.stdout_file {
             OpenOptions::new()
                 .create(true)
                 .truncate(true)
@@ -460,6 +460,18 @@ fn main() -> Result<(), ProcessWrapperError> {
         .wait()
         .map_err(|e| ProcessWrapperError(format!("failed to wait for child process: {}", e)))?;
     let code = status.code().unwrap_or(1);
+    // Close our handle on the stdout file before emptying it.
+    drop(command);
+    if code == 0 && opts.discard_stdout_on_success {
+        if let Some(stdout_file) = &opts.stdout_file {
+            fs::write(stdout_file, b"").map_err(|e| {
+                ProcessWrapperError(format!(
+                    "failed to empty stdout file {}: {}",
+                    stdout_file, e
+                ))
+            })?;
+        }
+    }
     if let Some(exit_code_file) = &opts.captured_exit_code_file {
         fs::write(exit_code_file, format!("{code}\n")).map_err(|e| {
             ProcessWrapperError(format!(

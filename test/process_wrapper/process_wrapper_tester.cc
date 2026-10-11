@@ -189,4 +189,13 @@ int main(int argc, const char* argv[], const char* envp[]) {
     if (combined || test_config == "stderr") {
         test_stderr();
     }
+
+    if (test_config == "discard-stdout-on-success") {
+        test_stdout();
+    }
+
+    if (test_config == "keep-stdout-on-failure") {
+        test_stdout();
+        return 1;
+    }
 }

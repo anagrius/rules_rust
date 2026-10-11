@@ -18,18 +18,26 @@ def _process_wrapper_tester_impl(ctx):
     args = ctx.actions.args()
     outputs = []
     combined = ctx.attr.test_config == "combined"
+    discard = ctx.attr.test_config in ("discard-stdout-on-success", "keep-stdout-on-failure")
+    exit_code_outputs = []
 
-    if combined or ctx.attr.test_config == "stdout":
+    if combined or discard or ctx.attr.test_config == "stdout":
         stdout_output = ctx.actions.declare_file(ctx.label.name + ".stdout")
         outputs.append(stdout_output)
         args.add("--stdout-file", stdout_output)
+
+    if discard:
+        args.add("--discard-stdout-on-success", "true")
+        exit_code_output = ctx.actions.declare_file(ctx.label.name + ".exit_code")
+        exit_code_outputs.append(exit_code_output)
+        args.add("--captured-exit-code-file", exit_code_output)
 
     if combined or ctx.attr.test_config == "stderr":
         stderr_output = ctx.actions.declare_file(ctx.label.name + ".stderr")
         outputs.append(stderr_output)
         args.add("--stderr-file", stderr_output)
 
-    if combined or (ctx.attr.test_config != "stdout" and ctx.attr.test_config != "stderr"):
+    if combined or (not discard and ctx.attr.test_config != "stdout" and ctx.attr.test_config != "stderr"):
         touch_output = ctx.actions.declare_file(ctx.label.name + ".touch")
         outputs.append(touch_output)
         args.add("--touch-file", touch_output)
@@ -67,13 +75,16 @@ def _process_wrapper_tester_impl(ctx):
         mnemonic = "RustcProcessWrapperTester",
         executable = ctx.executable._process_wrapper,
         inputs = ctx.files.env_files + ctx.files.arg_files,
-        outputs = outputs,
+        outputs = outputs + exit_code_outputs,
         arguments = [args, extra_args],
         env = env,
         tools = [ctx.executable._process_wrapper_tester],
     )
 
-    return [DefaultInfo(files = depset(outputs))]
+    return [
+        DefaultInfo(files = depset(outputs)),
+        OutputGroupInfo(exit_code = depset(exit_code_outputs)),
+    ]
 
 process_wrapper_tester = rule(
     implementation = _process_wrapper_tester_impl,
@@ -93,7 +104,9 @@ process_wrapper_tester = rule(
                 "basic",
                 "combined",
                 "copy-output",
+                "discard-stdout-on-success",
                 "env-files",
+                "keep-stdout-on-failure",
                 "stderr",
                 "stdout",
                 "subst-pwd",

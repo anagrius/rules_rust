@@ -43,6 +43,8 @@ pub(crate) struct Options {
     pub(crate) copy_output: Option<(String, String)>,
     // If set, redirects the child process stdout to this file.
     pub(crate) stdout_file: Option<String>,
+    // If set, empties the stdout file when the child process succeeds.
+    pub(crate) discard_stdout_on_success: bool,
     // If set, redirects the child process stderr to this file.
     pub(crate) stderr_file: Option<String>,
     // If set, writes the child process exit code to this file and exits
@@ -68,6 +70,7 @@ pub(crate) fn options() -> Result<Options, OptionError> {
     let mut touch_file = None;
     let mut copy_output_raw = None;
     let mut stdout_file = None;
+    let mut discard_stdout_on_success_raw = None;
     let mut stderr_file = None;
     let mut captured_exit_code_file = None;
     let mut output_file = None;
@@ -112,6 +115,11 @@ pub(crate) fn options() -> Result<Options, OptionError> {
         "--stdout-file",
         "Redirect subprocess stdout in this file.",
         &mut stdout_file,
+    );
+    flags.define_flag(
+        "--discard-stdout-on-success",
+        "If true, empty the --stdout-file file when the subprocess exits with 0.",
+        &mut discard_stdout_on_success_raw,
     );
     flags.define_flag(
         "--stderr-file",
@@ -268,6 +276,21 @@ pub(crate) fn options() -> Result<Options, OptionError> {
         })
         .transpose()?;
 
+    let discard_stdout_on_success = match discard_stdout_on_success_raw.as_deref() {
+        None | Some("false") => false,
+        Some("true") => true,
+        Some(v) => {
+            return Err(OptionError::Generic(format!(
+                "invalid --discard-stdout-on-success '{v}'",
+            )))
+        }
+    };
+    if discard_stdout_on_success && stdout_file.is_none() {
+        return Err(OptionError::Generic(
+            "--discard-stdout-on-success requires --stdout-file".to_owned(),
+        ));
+    }
+
     // Prepare the environment variables, unifying those read from files with the ones
     // of the current process.
     let vars = environment_block(
@@ -305,6 +328,7 @@ pub(crate) fn options() -> Result<Options, OptionError> {
         touch_file,
         copy_output,
         stdout_file,
+        discard_stdout_on_success,
         stderr_file,
         captured_exit_code_file,
         output_file,

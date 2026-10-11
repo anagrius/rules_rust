@@ -184,6 +184,7 @@ def _rustdoc_test_runs_in_build_action_test_impl(ctx):
     assert_argv_contains(env, action, "--stdout-file")
     assert_argv_contains(env, action, "--stderr-file")
     assert_argv_contains(env, action, "--captured-exit-code-file")
+    assert_argv_contains(env, action, "--discard-stdout-on-success")
 
     files = tut[DefaultInfo].files.to_list()
     asserts.equals(env, 1, len(files))

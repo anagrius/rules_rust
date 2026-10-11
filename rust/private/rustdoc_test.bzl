@@ -89,6 +89,11 @@ def _rust_doc_test_impl(ctx):
     action.process_wrapper_flags.add("--stderr-file", stderr_file)
     action.process_wrapper_flags.add("--captured-exit-code-file", exit_code_file)
 
+    # The stdout is cached, and libtest lists tests in completion order with
+    # wall-clock durations, so a passing run would write different bytes each
+    # time. A failing run keeps it for the failure details.
+    action.process_wrapper_flags.add("--discard-stdout-on-success", "true")
+
     ctx.actions.run(
         mnemonic = "RustdocTest",
         progress_message = "Running Rustdoc test for %{label}",
@@ -211,5 +216,9 @@ rust_doc_test = rule(
         ```
 
         Running `bazel test //hello_lib:hello_lib_doc_test` will run all documentation tests for the `hello_lib` library crate.
+
+        The documentation tests run in a build action whose output is cached, and the test replays it. \
+        When every documentation test passes, the replay prints nothing to stdout, so that the cached \
+        output is the same on every run. When one fails, it prints rustdoc's full output.
     """),
 )
